@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BasePromptElementProps } from '@vscode/prompt-tsx';
 import { randomUUID } from 'crypto';
 import type { CancellationToken, ChatRequest, ChatResponseStream, LanguageModelToolInformation, Progress } from 'vscode';
 import { IAuthenticationChatUpgradeService } from '../../../platform/authentication/common/authenticationUpgrade';
@@ -16,7 +15,7 @@ import { IInstantiationService } from '../../../util/vs/platform/instantiation/c
 import { ChatResponseProgressPart, ChatResponseReferencePart } from '../../../vscodeTypes';
 import { getAgentTools } from '../../intents/node/agentIntent';
 import { IToolCallingLoopOptions, ToolCallingLoop, ToolCallingLoopFetchOptions } from '../../intents/node/toolCallingLoop';
-import { AgentPrompt } from '../../prompts/node/agent/agentPrompt';
+import { AgentPrompt, AgentPromptProps } from '../../prompts/node/agent/agentPrompt';
 import { PromptElementCtor } from '../../prompts/node/base/promptElement';
 import { PromptRenderer } from '../../prompts/node/base/promptRenderer';
 import { ToolName } from '../../tools/common/toolNames';
@@ -32,7 +31,7 @@ export interface ISubagentToolCallingLoopOptions extends IToolCallingLoopOptions
 	/** Optional: if provided, only these tools will be available to the subagent */
 	allowedTools?: Set<ToolName>;
 	/** Optional: custom prompt class to use instead of AgentPrompt */
-	customPromptClass?: PromptElementCtor<BasePromptElementProps, unknown>;
+	customPromptClass?: PromptElementCtor<AgentPromptProps, unknown>;
 }
 
 export class SubagentToolCallingLoop extends ToolCallingLoop<ISubagentToolCallingLoopOptions> {

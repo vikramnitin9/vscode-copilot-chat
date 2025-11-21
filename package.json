@@ -193,6 +193,37 @@
 				}
 			},
 			{
+				"name": "execution_subagent",
+				"toolReferenceName": "executionSubagent",
+				"displayName": "%copilot.tools.executionSubagent.name%",
+				"icon": "$(rocket)",
+				"canBeReferencedInPrompt": true,
+				"userDescription": "%copilot.tools.executionSubagent.description%",
+				"modelDescription": "Launch an execution-focused subagent that uses run_in_terminal to perform terminal commands such as building, compiling and executing code. It returns a high-level succinct summary of the execution result.\nUse this tool instead of run_in_terminal in scenarios where you expect the terminal output to be very verbose, and you are only interested in specific portions of the output.\n\nInput fields:\n- command: The exact terminal command you want to execute, in the current working directory.\n- objective: What you are trying to determine from the output of this command, for example, compilation success, test pass rate, etc.\n- description: Short user-visible invocation message.\n\nReturns: A relevant extracted portion of the terminal output resulting from running the specified command, along with the return code.",
+				"tags": [],
+				"inputSchema": {
+					"type": "object",
+					"properties": {
+						"command": {
+							"type": "string",
+							"description": "The exact terminal command you want to execute, in the current working directory."
+						},
+						"objective": {
+							"type": "string",
+							"description": "What you are trying to determine from the output of this command, for example, compilation success, test pass rate, etc."
+						},
+						"description": {
+							"type": "string",
+							"description": "User-visible invocation message shown while the subagent runs."
+						}
+					},
+					"required": [
+						"command",
+						"description"
+					]
+				}
+			},
+			{
 				"name": "runSubagent",
 				"toolReferenceName": "runSubagent",
 				"displayName": "%copilot.tools.runSubagent.name%",
