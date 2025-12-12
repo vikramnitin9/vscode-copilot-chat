@@ -165,6 +165,38 @@
 				}
 			},
 			{
+				"name": "execution_subagent",
+				"toolReferenceName": "executionSubagent",
+				"displayName": "%copilot.tools.executionSubagent.name%",
+				"icon": "$(search)",
+				"canBeReferencedInPrompt": true,
+				"userDescription": "%copilot.tools.executionSubagent.description%",
+				"modelDescription": "Launch an iterative execution-focused subagent that wraps run_in_terminal and extracts relevant information from its output.\nUse this instead of run_in_terminal in most cases, as it discards non-essential terminal output.\nInput fields:\n- command: The exact command to execute in the terminal.\n- query: Natural language description of what information to extract from the command output.\n- description: Short user-visible invocation message.",
+				"tags": [],
+				"inputSchema": {
+					"type": "object",
+					"properties": {
+						"command": {
+							"type": "string",
+							"description": "The exact command to execute in the terminal."
+						},
+						"query": {
+							"type": "string",
+							"description": "Natural language description of what information to extract from the command output."
+						},
+						"description": {
+							"type": "string",
+							"description": "User-visible invocation message shown while the subagent runs."
+						}
+					},
+					"required": [
+						"command",
+						"query",
+						"description"
+					]
+				}
+			},
+			{
 				"name": "search_subagent",
 				"toolReferenceName": "searchSubagent",
 				"displayName": "%copilot.tools.searchSubagent.name%",
