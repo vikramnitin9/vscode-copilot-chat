@@ -66,7 +66,7 @@ class ExecutionSubagentTool implements ICopilotTool<IExecutionSubagentParams> {
 			request: this._inputContext!.request!,
 			location: this._inputContext!.request!.location,
 			promptText: options.input.query,
-			allowedTools: new Set([ToolName.Codebase, ToolName.FindFiles, ToolName.FindTextInFiles, ToolName.ReadFile]),
+			allowedTools: new Set([ToolName.CoreRunInTerminal]),
 			customPromptClass: ExecutionSubagentPrompt as typeof ExecutionSubagentPrompt & PromptElementCtor,
 		});
 

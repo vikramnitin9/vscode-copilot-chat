@@ -21,7 +21,7 @@ suite('Session tests', function () {
 	const accessor = testingServiceCollection.createTestingAccessor();
 
 	let sandbox: sinon.SinonSandbox;
-	let getSessionStub: sinon.SinonStub<[providerId: string, scopes: readonly string[], options?: AuthenticationGetSessionOptions | undefined], Thenable<AuthenticationSession | undefined>>;
+	let getSessionStub: sinon.SinonStub;
 	let getAccountsStub: sinon.SinonStub<[providerId: string], Thenable<readonly AuthenticationSessionAccountInformation[]>>;
 	let configurationStub: sinon.SinonStub<[section?: string | undefined, scope?: ConfigurationScope | null | undefined], WorkspaceConfiguration>;
 

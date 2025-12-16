@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { randomUUID } from 'crypto';
+import type { CancellationToken, ChatRequest, ChatResponseStream, LanguageModelToolInformation, Progress } from 'vscode';
 import * as vscode from 'vscode';
-import type { CancellationToken, ChatRequest, ChatResponseStream, LanguageModelChat, LanguageModelToolInformation, Progress } from 'vscode';
 import { IAuthenticationChatUpgradeService } from '../../../platform/authentication/common/authenticationUpgrade';
 import { ChatLocation, ChatResponse } from '../../../platform/chat/common/commonTypes';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
@@ -53,7 +53,7 @@ export class SubagentToolCallingLoop extends ToolCallingLoop<ISubagentToolCallin
 
 	protected override createPromptContext(availableTools: LanguageModelToolInformation[], outputStream: ChatResponseStream | undefined): IBuildPromptContext {
 		const context = super.createPromptContext(availableTools, outputStream);
-		
+
 		// Log tool results available in context
 		if (context.toolCallResults && Object.keys(context.toolCallResults).length > 0) {
 			this._logService.info('[SubagentToolCallingLoop] ========================================');
@@ -66,19 +66,18 @@ export class SubagentToolCallingLoop extends ToolCallingLoop<ISubagentToolCallin
 					result.content.forEach((part, idx) => {
 						if (part instanceof LanguageModelTextPart) {
 							this._logService.info(`[SubagentToolCallingLoop]   Part ${idx + 1}: Text (length: ${part.value.length})`);
-							this._logService.info(`[SubagentToolCallingLoop]   Full text:`, part.value);
 						} else {
-							this._logService.info(`[SubagentToolCallingLoop]   Part ${idx + 1}: ${part.constructor.name}`);
+							this._logService.info(`[SubagentToolCallingLoop]   Part ${idx + 1}: ${(part as any).constructor?.name ?? 'Unknown'}`);
 						}
 					});
 				} else {
 					this._logService.info(`[SubagentToolCallingLoop]   Result type: ${typeof result}`);
-					this._logService.info(`[SubagentToolCallingLoop]   Result:`, result);
+					this._logService.info(`[SubagentToolCallingLoop]   Result: ${result}`);
 				}
 			}
 			this._logService.info('[SubagentToolCallingLoop] ========================================');
 		}
-		
+
 		if (context.tools) {
 			context.tools = {
 				...context.tools,
@@ -107,7 +106,7 @@ export class SubagentToolCallingLoop extends ToolCallingLoop<ISubagentToolCallin
 			}
 			this._logService.info('[SubagentToolCallingLoop] ========================================');
 		} catch (error) {
-			this._logService.warn('[SubagentToolCallingLoop] Failed to list available models:', error);
+			this._logService.warn(`[SubagentToolCallingLoop] Failed to list available models: ${error}`);
 		}
 	}
 
@@ -121,33 +120,33 @@ export class SubagentToolCallingLoop extends ToolCallingLoop<ISubagentToolCallin
 			vendor: 'customoai',
 			id: 'qwen3-4b'
 		};
-		
-		this._logService.info('[SubagentToolCallingLoop] Attempting to select model:', JSON.stringify(modelSelector, null, 2));
-		
+
+		this._logService.info(`[SubagentToolCallingLoop] Attempting to select model: ${JSON.stringify(modelSelector, null, 2)}`);
+
 		try {
 			// Use vscode.lm.selectChatModels to get the actual registered model
 			const models = await vscode.lm.selectChatModels(modelSelector);
-			
+
 			if (!models || models.length === 0) {
 				const errorMsg = `No models found matching selector: ${JSON.stringify(modelSelector)}. Ensure the model is configured in github.copilot.chat.customOAIModels setting.`;
 				this._logService.error(`[SubagentToolCallingLoop] ${errorMsg}`);
 				throw new Error(errorMsg);
 			}
-			
+
 			const qwenModel = models[0];
-			this._logService.info('[SubagentToolCallingLoop] Selected model from VS Code:', JSON.stringify({
+			this._logService.info(`[SubagentToolCallingLoop] Selected model from VS Code: ${JSON.stringify({
 				vendor: qwenModel.vendor,
 				id: qwenModel.id,
 				name: qwenModel.name,
 				family: qwenModel.family,
 				hasCapabilities: !!qwenModel.capabilities,
 				supportsToolCalling: qwenModel.capabilities?.supportsToolCalling
-			}, null, 2));
-			
+			}, null, 2)}`);
+
 			// Pass the actual registered model to getChatEndpoint
 			const endpoint = await this.endpointProvider.getChatEndpoint(qwenModel);
-			
-			this._logService.info('[SubagentToolCallingLoop] Successfully selected endpoint:', {
+
+			this._logService.info(`[SubagentToolCallingLoop] Successfully selected endpoint: ${JSON.stringify({
 				requestedModelId: modelSelector.id,
 				requestedModelVendor: modelSelector.vendor,
 				endpointModel: endpoint.model,
@@ -155,14 +154,14 @@ export class SubagentToolCallingLoop extends ToolCallingLoop<ISubagentToolCallin
 				supportsToolCalls: endpoint.supportsToolCalls,
 				supportsVision: endpoint.supportsVision,
 				isExtensionContributed: endpoint.isExtensionContributed
-			});
-			
+			})}`);
+
 			if (!endpoint.supportsToolCalls) {
 				const errorMsg = `Selected model ${qwenModel.id} does not support tool calls, which is required for search subagent`;
-				this._logService.error(`[SubagentToolCallingLoop] ${errorMsg}`);
+				this._logService.error(`[SubagentToolCallingLoop] ${errorMsg} `);
 				throw new Error(errorMsg);
 			}
-			
+
 			return endpoint;
 		} catch (error) {
 			// Log full error details and throw instead of falling back
@@ -174,7 +173,7 @@ export class SubagentToolCallingLoop extends ToolCallingLoop<ISubagentToolCallin
 			this._logService.error('[SubagentToolCallingLoop] Error message:', error instanceof Error ? error.message : String(error));
 			this._logService.error('[SubagentToolCallingLoop] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
 			this._logService.error('[SubagentToolCallingLoop] ========================================');
-			throw new Error(`Failed to get endpoint for search subagent with model ${modelSelector.id}: ${error instanceof Error ? error.message : String(error)}`);
+			throw new Error(`Failed to get endpoint for search subagent with model ${modelSelector.id}: ${error instanceof Error ? error.message : String(error)} `);
 		}
 	}
 
@@ -225,7 +224,7 @@ export class SubagentToolCallingLoop extends ToolCallingLoop<ISubagentToolCallin
 					endpoint.family,
 					requestOptions?.tools,
 					(tool, rule) => {
-						this._logService.warn(`Tool ${tool} failed validation: ${rule}`);
+						this._logService.warn(`Tool ${tool} failed validation: ${rule} `);
 					},
 				),
 			},
