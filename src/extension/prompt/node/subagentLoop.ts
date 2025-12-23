@@ -29,6 +29,7 @@ export interface ISubagentToolCallingLoopOptions extends IToolCallingLoopOptions
 	request: ChatRequest;
 	location: ChatLocation;
 	promptText: string;
+	modelSelector: { vendor: string; id: string };
 	/** Optional: if provided, only these tools will be available to the subagent */
 	allowedTools?: Set<ToolName>;
 	/** Optional: custom prompt class to use instead of AgentPrompt */
@@ -114,12 +115,7 @@ export class SubagentToolCallingLoop extends ToolCallingLoop<ISubagentToolCallin
 		// Log available models for debugging
 		await this.logAvailableModels();
 
-		// Define the model to use for search subagent
-		// This should match a model configured in github.copilot.chat.customOAIModels setting
-		const modelSelector = {
-			vendor: 'customoai',
-			id: 'qwen3-4b'
-		};
+		const modelSelector = this.options.modelSelector;
 
 		this._logService.info(`[SubagentToolCallingLoop] Attempting to select model: ${JSON.stringify(modelSelector, null, 2)}`);
 

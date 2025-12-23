@@ -121,6 +121,9 @@
 			"{Locked='](command:workbench.action.chat.openNewSessionEditor.copilot-cloud-agent)'}"
 		]
 	},
+	"github.copilot.config.disableSearchSubagent": "Disable the Search Subagent tool in Copilot Chat.",
+	"github.copilot.config.disableExecutionSubagent": "Disable the Execution Subagent tool in Copilot Chat. The Execution Subagent is an improved version of the run_in_terminal tool that filters out non-essential terminal output to provide more relevant responses. Disabling this tool may lead to less accurate results when using terminal command execution in chat.",
+	"github.copilot.config.executionSubagentModel": "The model to use for the Execution Subagent tool in Copilot Chat. Ensure that the selected model is configured in the `github.copilot.chat.customOAIModels` setting.",
 	"github.copilot.viewsWelcome.noGitHub.contents": "Clone or open a GitHub repository to get started",
 	"github.copilot.viewsWelcome.noRepo.contents": "No git repositories found",
 	"github.copilot.command.logWorkbenchState": "Log Workbench State",
@@ -312,7 +315,6 @@
 	"copilot.tools.searchWorkspaceSymbols.name": "Workspace Symbols",
 	"copilot.tools.listCodeUsages.name": "Find Usages",
 	"copilot.tools.getVSCodeAPI.name": "Get VS Code API References",
-
 	"copilot.tools.findFiles.name": "Find Files",
 	"copilot.tools.findTextInFiles.name": "Find Text In Files",
 	"copilot.tools.applyPatch.name": "Apply Patch",
@@ -423,5 +425,5 @@
 	"copilot.tools.searchSubagent.name": "Search Subagent",
 	"copilot.tools.searchSubagent.description": "Launch an iterative search-focused subagent to find relevant code in your workspace",
 	"copilot.tools.executionSubagent.name": "Execution Subagent",
-	"copilot.tools.executionSubagent.description": "Launch an execution-focused subagent that runs a terminal command and extracts relevant information from its output."
+	"copilot.tools.executionSubagent.description": "Launch an execution-focused subagent that runs a terminal command and extracts relevant information from its output.",
 }

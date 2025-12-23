@@ -64,6 +64,11 @@ class SearchSubagentTool implements ICopilotTool<ISearchSubagentParams> {
 			''
 		].join('\n');
 
+		const modelSelector = {
+			vendor: 'copilot',
+			id: 'claude-haiku-4.5'
+		};
+
 		const loop = this.instantiationService.createInstance(SubagentToolCallingLoop, {
 			toolCallLimit: 25,
 			conversation: new Conversation('', [new Turn('', { type: 'user', message: searchInstruction })]),
@@ -71,6 +76,7 @@ class SearchSubagentTool implements ICopilotTool<ISearchSubagentParams> {
 			location: this._inputContext!.request!.location,
 			promptText: options.input.query,
 			allowedTools: new Set([ToolName.Codebase, ToolName.FindFiles, ToolName.FindTextInFiles, ToolName.ReadFile]),
+			modelSelector: modelSelector,
 			customPromptClass: SearchSubagentPrompt as typeof SearchSubagentPrompt & PromptElementCtor,
 		});
 

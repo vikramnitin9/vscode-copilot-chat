@@ -172,7 +172,7 @@
                 "canBeReferencedInPrompt": true,
                 "userDescription": "%copilot.tools.executionSubagent.description%",
                 "modelDescription": "Launch an iterative execution-focused subagent that wraps run_in_terminal and extracts relevant information from its output.\nUse this instead of run_in_terminal in most cases, as it discards non-essential terminal output.\nInput fields:\n- command: The exact command to execute in the terminal.\n- query: Natural language description of what information to extract from the command output.\n- description: Short user-visible invocation message.",
-                "tags": [],
+                "when": "!config.github.copilot.chat.disableExecutionSubagent",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -200,6 +200,7 @@
                 "name": "search_subagent",
                 "toolReferenceName": "searchSubagent",
                 "displayName": "%copilot.tools.searchSubagent.name%",
+                "when": "!config.github.copilot.chat.disableSearchSubagent",
                 "icon": "$(search)",
                 "canBeReferencedInPrompt": true,
                 "userDescription": "%copilot.tools.searchSubagent.description%",
@@ -3806,6 +3807,33 @@
                         "type": "boolean",
                         "default": false,
                         "markdownDescription": "%github.copilot.config.enableUserPreferences%",
+                        "tags": [
+                            "advanced",
+                            "experimental"
+                        ]
+                    },
+                    "github.copilot.chat.disableSearchSubagent": {
+                        "type": "boolean",
+                        "default": false,
+                        "markdownDescription": "%github.copilot.config.disableSearchSubagent%",
+                        "tags": [
+                            "advanced",
+                            "experimental"
+                        ]
+                    },
+                    "github.copilot.chat.disableExecutionSubagent": {
+                        "type": "boolean",
+                        "default": false,
+                        "markdownDescription": "%github.copilot.config.disableExecutionSubagent%",
+                        "tags": [
+                            "advanced",
+                            "experimental"
+                        ]
+                    },
+                    "github.copilot.chat.executionSubagentModel": {
+                        "type": "string",
+                        "default": "claude-sonnet-4.5",
+                        "markdownDescription": "%github.copilot.config.executionSubagentModel%",
                         "tags": [
                             "advanced",
                             "experimental"
