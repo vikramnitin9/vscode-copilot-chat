@@ -186,7 +186,6 @@
                         }
                     },
                     "required": [
-                        "command",
                         "query",
                         "description"
                     ]
