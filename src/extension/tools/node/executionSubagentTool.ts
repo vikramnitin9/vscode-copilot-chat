@@ -21,9 +21,7 @@ import { CopilotToolMode, ICopilotTool, ToolRegistry } from '../common/toolsRegi
 
 export interface IExecutionSubagentParams {
 
-	/** The exact command to execute in the terminal */
-	command: string;
-	/** Natural language description of what information to extract from the command output. */
+	/** What to execute, and what to look for in the output. Can include an exact command to run, or a description of an execution task. */
 	query: string;
 	/** User-visible description shown while invoking */
 	description: string;
@@ -40,7 +38,6 @@ class ExecutionSubagentTool implements ICopilotTool<IExecutionSubagentParams> {
 	) { }
 	async invoke(options: vscode.LanguageModelToolInvocationOptions<IExecutionSubagentParams>, token: vscode.CancellationToken) {
 		const executionInstruction = [
-			`Command to Run: ${options.input.command}`,
 			`Query: ${options.input.query}`,
 			'',
 			'You are a specialized execution subagent. Use these tools to perform an execution task and return relevant portions of the execution output',
@@ -55,11 +52,11 @@ class ExecutionSubagentTool implements ICopilotTool<IExecutionSubagentParams> {
 			'',
 			'<final_answer>',
 			'{',
-			' \"command\": \"<a command that was run, or the name of a tool that was invoked>\",',
+			' \"command_or_tool\": \"<a command that was run, or the name of a tool that was invoked>\",',
 			' \"output\": \"relevant output excerpts from the command or tool invocation\"',
 			'}',
 			'{',
-			' \"command\": \"<another command that was run, or the name of a tool that was invoked>\",',
+			' \"command_or_tool\": \"<another command that was run, or the name of a tool that was invoked>\",',
 			' \"output\": \"relevant output excerpts from the command or tool invocation\"',
 			'}',
 			'...',

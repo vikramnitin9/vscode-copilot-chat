@@ -176,13 +176,9 @@
                 "inputSchema": {
                     "type": "object",
                     "properties": {
-                        "command": {
-                            "type": "string",
-                            "description": "The exact command to execute in the terminal."
-                        },
                         "query": {
                             "type": "string",
-                            "description": "Natural language description of what information to extract from the command output."
+                            "description": "What to execute, and what to look for in the output. Can include an exact command to run, or a description of an execution task."
                         },
                         "description": {
                             "type": "string",
