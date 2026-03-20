@@ -72,6 +72,7 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	const experimentationService = accessor.get<IExperimentationService>(IExperimentationService);
 	const endpointProvider = accessor.get<IEndpointProvider>(IEndpointProvider);
 	const editToolLearningService = accessor.get<IEditToolLearningService>(IEditToolLearningService);
+	const logService = accessor.get<ILogService>(ILogService);
 	const model = await endpointProvider.getChatEndpoint(request);
 
 	const allowTools: Record<string, boolean> = {};
@@ -106,9 +107,15 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 
 	const searchSubagentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentToolEnabled, experimentationService);
 	const isGptOrAnthropic = isGptFamily(model) || isAnthropicFamily(model);
+	if (!isGptOrAnthropic && searchSubagentEnabled) {
+		logService.warn(`[AgentTools] SearchSubagent disabled: model family '${model.family}' is not GPT or Anthropic`);
+	}
 	allowTools[ToolName.SearchSubagent] = isGptOrAnthropic && searchSubagentEnabled;
 
 	const executionSubagentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentToolEnabled, experimentationService);
+	if (!isGptOrAnthropic && executionSubagentEnabled) {
+		logService.warn(`[AgentTools] ExecutionSubagent disabled: model family '${model.family}' is not GPT or Anthropic`);
+	}
 	allowTools[ToolName.ExecutionSubagent] = isGptOrAnthropic && executionSubagentEnabled;
 
 	if (model.family.includes('grok-code')) {

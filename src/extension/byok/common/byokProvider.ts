@@ -101,7 +101,7 @@ export function resolveModelInfo(modelId: string, providerName: string, knownMod
 		version: '1.0.0',
 		capabilities: {
 			type: 'chat',
-			family: modelId,
+			family: modelName,
 			supports: {
 				streaming: knownModelInfo?.streaming ?? true,
 				tool_calls: !!knownModelInfo?.toolCalling,
@@ -143,7 +143,7 @@ export function byokKnownModelToAPIInfo(providerName: string, id: string, capabi
 		maxOutputTokens: capabilities.maxOutputTokens,
 		maxInputTokens: capabilities.maxInputTokens,
 		detail: providerName,
-		family: id,
+		family: capabilities.name,
 		tooltip: `${capabilities.name} is contributed via the ${providerName} provider.`,
 		multiplierNumeric: 0,
 		capabilities: {
