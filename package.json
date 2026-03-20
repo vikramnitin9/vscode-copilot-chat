@@ -4340,6 +4340,14 @@
 							"experimental"
 						]
 					},
+					"github.copilot.chat.executionSubagent.useAgenticProxy": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "%github.copilot.config.executionSubagent.useAgenticProxy%",
+						"tags": [
+							"advanced"
+						]
+					},
 					"github.copilot.chat.executionSubagent.model": {
 						"type": "string",
 						"default": "",
