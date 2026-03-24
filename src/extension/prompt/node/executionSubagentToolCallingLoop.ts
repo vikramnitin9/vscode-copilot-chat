@@ -5,13 +5,13 @@
 
 import { randomUUID } from 'crypto';
 import type { CancellationToken, ChatRequest, ChatResponseStream, LanguageModelToolInformation, Progress } from 'vscode';
+import { lm } from 'vscode';
 import { IAuthenticationChatUpgradeService } from '../../../platform/authentication/common/authenticationUpgrade';
 import { IChatHookService } from '../../../platform/chat/common/chatHookService';
 import { ChatLocation, ChatResponse } from '../../../platform/chat/common/commonTypes';
 import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
-import { ChatEndpointFamily, IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
-import { ProxyAgenticExecutionEndpoint } from '../../../platform/endpoint/node/proxyAgenticExecutionEndpoint';
+import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IOTelService } from '../../../platform/otel/common/otelService';
@@ -73,34 +73,15 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 		return context;
 	}
 
-	private static readonly DEFAULT_AGENTIC_PROXY_MODEL = 'agentic-execution-v1';
-
 	/**
 	 * Get the endpoint to use for the execution subagent
 	 */
 	private async getEndpoint() {
-		const modelName = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentModel, this._experimentationService) as ChatEndpointFamily | undefined;
-		const useAgenticProxy = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentUseAgenticProxy, this._experimentationService);
-
-		if (useAgenticProxy) {
-			// Use agentic proxy with ExecutionSubagentModel or default to 'agentic-execution-v1'
-			const agenticProxyModel = modelName || ExecutionSubagentToolCallingLoop.DEFAULT_AGENTIC_PROXY_MODEL;
-			return this.instantiationService.createInstance(ProxyAgenticExecutionEndpoint, agenticProxyModel);
+		const models = await lm.selectChatModels({ vendor: 'customoai', id: 'accounts/msft/deployments/ovpos84k' });
+		if (models.length === 0) {
+			throw new Error('Execution subagent model customoai/accounts/msft/deployments/ovpos84k not found');
 		}
-
-		if (modelName) {
-			try {
-				// Try to get the specified model
-				return await this.endpointProvider.getChatEndpoint(modelName);
-			} catch (error) {
-				// Model not available or doesn't support tool calls, fallback to main agent
-				this._logService.warn(`Failed to get model ${modelName}, falling back to main agent endpoint: ${error}`);
-				return await this.endpointProvider.getChatEndpoint(this.options.request);
-			}
-		} else {
-			// No model name specified, use main agent endpoint
-			return await this.endpointProvider.getChatEndpoint(this.options.request);
-		}
+		return await this.endpointProvider.getChatEndpoint(models[0]);
 	}
 
 	protected async buildPrompt(buildpromptContext: IBuildPromptContext, progress: Progress<ChatResponseReferencePart | ChatResponseProgressPart>, token: CancellationToken): Promise<IBuildPromptResult> {
