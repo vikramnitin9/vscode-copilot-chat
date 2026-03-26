@@ -77,9 +77,9 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 	 * Get the endpoint to use for the execution subagent
 	 */
 	private async getEndpoint() {
-		const models = await lm.selectChatModels({ vendor: 'customoai', id: 'accounts/msft/deployments/ovpos84k' });
+		const models = await lm.selectChatModels({ vendor: 'customoai', id: 'accounts/msft/deployments/of5ko0x3' });
 		if (models.length === 0) {
-			throw new Error('Execution subagent model customoai/accounts/msft/deployments/ovpos84k not found');
+			throw new Error('Execution subagent model customoai/accounts/msft/deployments/of5ko0x3 not found');
 		}
 		return await this.endpointProvider.getChatEndpoint(models[0]);
 	}
