@@ -5,18 +5,14 @@
 
 import type { Session, SessionOptions } from '@github/copilot/sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ChatContext, ChatParticipantToolToken } from 'vscode';
-import { NullChatDebugFileLoggerService } from '../../../../../platform/chat/common/chatDebugFileLoggerService';
+import type { ChatParticipantToolToken } from 'vscode';
 import { ConfigKey, IConfigurationService } from '../../../../../platform/configuration/common/configurationService';
 import { ILogService } from '../../../../../platform/log/common/logService';
 import { NoopOTelService, resolveOTelConfig } from '../../../../../platform/otel/common/index';
-import { ICompletedSpanData } from '../../../../../platform/otel/common/otelService';
-import { InMemoryOTelService } from '../../../../../platform/otel/node/inMemoryOTelService';
 import { NullRequestLogger } from '../../../../../platform/requestLogger/node/nullRequestLogger';
 import { IRequestLogger } from '../../../../../platform/requestLogger/node/requestLogger';
 import { TestWorkspaceService } from '../../../../../platform/test/node/testWorkspaceService';
 import { IWorkspaceService } from '../../../../../platform/workspace/common/workspaceService';
-import { mock } from '../../../../../util/common/test/simpleMock';
 import { CancellationToken } from '../../../../../util/vs/base/common/cancellation';
 import { DisposableStore } from '../../../../../util/vs/base/common/lifecycle';
 import * as path from '../../../../../util/vs/base/common/path';
@@ -29,11 +25,9 @@ import { ExternalEditTracker } from '../../../common/externalEditTracker';
 import { MockChatSessionMetadataStore } from '../../../common/test/mockChatSessionMetadataStore';
 import { IWorkspaceInfo } from '../../../common/workspaceInfo';
 import { FakeToolsService, ToolCall } from '../../common/copilotCLITools';
-import { IChatDelegationSummaryService } from '../../common/delegationSummaryService';
-import { CopilotCLISessionOptions, ICopilotCLISDK } from '../copilotCli';
 import { CopilotCLISession } from '../copilotcliSession';
 import { PermissionRequest } from '../permissionHelpers';
-import { IUserQuestionHandler, UserInputRequest, UserInputResponse } from '../userInputHelpers';
+import { IQuestion, IQuestionAnswer, IUserQuestionHandler } from '../userInputHelpers';
 import { NullICopilotCLIImageSupport } from './testHelpers';
 
 vi.mock('../cliHelpers', async (importOriginal) => ({
@@ -125,6 +119,10 @@ class MockSdkSession {
 
 	async compactHistory() { return { success: true }; }
 
+	async abort() { }
+
+	isAbortable(): boolean { return true; }
+
 	async initializeAndValidateTools() { }
 	getCurrentToolMetadata(): unknown[] | undefined { return this._toolMetadata; }
 	private _toolMetadata: unknown[] | undefined;
@@ -165,22 +163,15 @@ describe('CopilotCLISession', () => {
 	let sdkSession: MockSdkSession;
 	let workspaceService: IWorkspaceService;
 	let logger: ILogService;
-	let sessionOptions: CopilotCLISessionOptions;
+	let sessionWorkspaceInfo: IWorkspaceInfo;
+	let sessionAgentName: string | undefined;
 	let instaService: IInstantiationService;
-	let sdk: ICopilotCLISDK;
 	let requestLogger: IRequestLogger;
 	let toolsService: FakeToolsService;
 	let configurationService: IConfigurationService;
 	let chatSessionMetadataStore: MockChatSessionMetadataStore;
-	const delegationService = new class extends mock<IChatDelegationSummaryService>() {
-		override async summarize(context: ChatContext, token: CancellationToken): Promise<string | undefined> {
-			return undefined;
-		}
-		override extractPrompt(_sessionId: string, _message: string) {
-			return undefined;
-		}
-	}();
 	let authInfo: NonNullable<SessionOptions['authInfo']>;
+	let userQuestionAnswer: IQuestionAnswer | undefined;
 	beforeEach(async () => {
 		const services = disposables.add(createExtensionUnitTestingServices());
 		const accessor = services.createTestingAccessor();
@@ -191,22 +182,16 @@ describe('CopilotCLISession', () => {
 			token: '',
 			host: 'https://github.com'
 		};
-		sdk = new class extends mock<ICopilotCLISDK>() {
-			override async getAuthInfo(): Promise<NonNullable<SessionOptions['authInfo']>> {
-				return authInfo;
-			}
-			override getRequestId(_sdkRequestId: string) {
-				return undefined;
-			}
-		};
 		chatSessionMetadataStore = new MockChatSessionMetadataStore();
 		sdkSession = new MockSdkSession();
 		workspaceService = createWorkspaceService('/workspace');
-		sessionOptions = new CopilotCLISessionOptions({ workspaceInfo: workspaceInfoFor(workspaceService.getWorkspaceFolders()![0]) }, logger);
+		sessionWorkspaceInfo = workspaceInfoFor(workspaceService.getWorkspaceFolders()![0]);
+		sessionAgentName = undefined;
 		configurationService = accessor.get(IConfigurationService);
 		await configurationService.setConfig(ConfigKey.Advanced.CLIPlanExitModeEnabled, true);
 		instaService = services.seal();
 		toolsService = new FakeToolsService();
+		userQuestionAnswer = undefined;
 	});
 
 	afterEach(() => {
@@ -218,26 +203,25 @@ describe('CopilotCLISession', () => {
 	async function createSession(): Promise<CopilotCLISession> {
 		class FakeUserQuestionHandler implements IUserQuestionHandler {
 			_serviceBrand: undefined;
-			async askUserQuestion(question: UserInputRequest, toolInvocationToken: ChatParticipantToolToken, token: CancellationToken): Promise<UserInputResponse | undefined> {
-				return undefined;
+			async askUserQuestion(question: IQuestion, toolInvocationToken: ChatParticipantToolToken, token: CancellationToken): Promise<IQuestionAnswer | undefined> {
+				return userQuestionAnswer;
 			}
 		}
 		return disposables.add(new CopilotCLISession(
-			sessionOptions,
+			sessionWorkspaceInfo,
+			sessionAgentName,
 			sdkSession as unknown as Session,
+			[],
 			logger,
 			workspaceService,
-			sdk,
 			chatSessionMetadataStore,
 			instaService,
-			delegationService,
 			requestLogger,
 			new NullICopilotCLIImageSupport(),
 			toolsService,
 			new FakeUserQuestionHandler(),
 			configurationService,
 			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })),
-			new NullChatDebugFileLoggerService(),
 		));
 	}
 
@@ -252,52 +236,6 @@ describe('CopilotCLISession', () => {
 		expect(session.status).toBe(ChatSessionStatus.Completed);
 		expect(stream.output.join('\n')).toContain('Echo: Hello');
 		// Listeners are disposed after completion, so we only assert original streamed content.
-	});
-
-	describe('request mapping migration', () => {
-		it('getChatHistory should prefer request details from chat session metadata store', async () => {
-			chatSessionMetadataStore = new MockChatSessionMetadataStore();
-			await chatSessionMetadataStore.updateRequestDetails('mock-session-id', [{
-				vscodeRequestId: 'vscode-request-1',
-				copilotRequestId: 'sdk-request-1',
-				toolIdEditMap: {}
-			}]);
-			const legacyGetSpy = vi.spyOn(sdk, 'getRequestId').mockReturnValue(undefined);
-			(sdkSession as unknown as { getEvents: () => unknown[] }).getEvents = () => [
-				{ id: 'sdk-request-1', type: 'user.message', data: { content: 'hello', attachments: [] } }
-			];
-
-			const session = await createSession();
-			await session.getChatHistory();
-
-			expect(legacyGetSpy).not.toHaveBeenCalled();
-		});
-
-		it('getChatHistory should fallback to legacy SDK mapping and persist to metadata store', async () => {
-			chatSessionMetadataStore = new MockChatSessionMetadataStore();
-			const updateSpy = vi.spyOn(chatSessionMetadataStore, 'updateRequestDetails');
-			vi.spyOn(sdk, 'getRequestId').mockImplementation(sdkRequestId => {
-				if (sdkRequestId !== 'sdk-request-2') {
-					return undefined;
-				}
-				return {
-					requestId: 'vscode-request-2',
-					toolIdEditMap: { 'tool-1': 'edit-1' },
-				};
-			});
-			(sdkSession as unknown as { getEvents: () => unknown[] }).getEvents = () => [
-				{ id: 'sdk-request-2', type: 'user.message', data: { content: 'hello', attachments: [] } }
-			];
-
-			const session = await createSession();
-			await session.getChatHistory();
-
-			expect(updateSpy).toHaveBeenCalledWith('mock-session-id', [{
-				vscodeRequestId: 'vscode-request-2',
-				copilotRequestId: 'sdk-request-2',
-				toolIdEditMap: { 'tool-1': 'edit-1' }
-			}]);
-		});
 	});
 
 	it('switches model when different modelId provided', async () => {
@@ -438,7 +376,7 @@ describe('CopilotCLISession', () => {
 
 	it('auto-approves read permission inside working directory without external handler', async () => {
 		let result: unknown;
-		sessionOptions = new CopilotCLISessionOptions({ workspaceInfo: workspaceInfoFor(URI.file('/workingDirectory')) }, logger);
+		sessionWorkspaceInfo = workspaceInfoFor(URI.file('/workingDirectory'));
 		sdkSession.send = async ({ prompt }: any) => {
 			sdkSession.emit('assistant.turn_start', {});
 			sdkSession.emit('assistant.message', { content: `Echo: ${prompt}` });
@@ -459,14 +397,12 @@ describe('CopilotCLISession', () => {
 		let result: unknown;
 		const worktreeUri = URI.file('/worktrees/session1');
 		const folderUri = URI.file('/original-repo');
-		sessionOptions = new CopilotCLISessionOptions({
-			workspaceInfo: {
-				folder: folderUri,
-				repository: folderUri,
-				worktree: worktreeUri,
-				worktreeProperties: { version: 1, autoCommit: false, baseCommit: 'abc', branchName: 'main', repositoryPath: '/original-repo', worktreePath: '/worktrees/session1' },
-			}
-		}, logger);
+		sessionWorkspaceInfo = {
+			folder: folderUri,
+			repository: folderUri,
+			worktree: worktreeUri,
+			worktreeProperties: { version: 1, autoCommit: false, baseCommit: 'abc', branchName: 'main', repositoryPath: '/original-repo', worktreePath: '/worktrees/session1' },
+		};
 		sdkSession.send = async ({ prompt }: any) => {
 			sdkSession.emit('assistant.turn_start', {});
 			sdkSession.emit('assistant.message', { content: `Echo: ${prompt}` });
@@ -486,14 +422,12 @@ describe('CopilotCLISession', () => {
 		let result: unknown;
 		const worktreeUri = URI.file('/worktrees/session1');
 		const folderUri = URI.file('/original-repo');
-		sessionOptions = new CopilotCLISessionOptions({
-			workspaceInfo: {
-				folder: folderUri,
-				repository: folderUri,
-				worktree: worktreeUri,
-				worktreeProperties: { version: 1, autoCommit: false, baseCommit: 'abc', branchName: 'main', repositoryPath: '/original-repo', worktreePath: '/worktrees/session1' },
-			}
-		}, logger);
+		sessionWorkspaceInfo = {
+			folder: folderUri,
+			repository: folderUri,
+			worktree: worktreeUri,
+			worktreeProperties: { version: 1, autoCommit: false, baseCommit: 'abc', branchName: 'main', repositoryPath: '/original-repo', worktreePath: '/worktrees/session1' },
+		};
 		sdkSession.send = async ({ prompt }: any) => {
 			sdkSession.emit('assistant.turn_start', {});
 			sdkSession.emit('assistant.message', { content: `Echo: ${prompt}` });
@@ -757,7 +691,7 @@ describe('CopilotCLISession', () => {
 			const stream = new MockChatResponseStream();
 			session.attachStream(stream);
 
-			await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { command: 'compact' }, [], undefined, authInfo, CancellationToken.None);
+			await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { command: 'compact', prompt: '' }, [], undefined, authInfo, CancellationToken.None);
 
 			expect(sdkSession.currentMode).toBe('interactive');
 			expect(stream.output.join('\n')).toContain('Compacted conversation.');
@@ -1219,11 +1153,11 @@ describe('CopilotCLISession', () => {
 			expect(result.value).toEqual({ approved: false });
 		});
 
-		it('approves when user confirms via confirmation tool in non-autopilot mode', async () => {
+		it('approves when user confirms via user question handler in non-autopilot mode', async () => {
 			const result = { value: undefined as unknown };
 			const summary = 'Here is the plan';
 			setupSendWithExitPlanMode({ summary, actions: ['exit_only'] }, result);
-			toolsService.setConfirmationResult('yes');
+			userQuestionAnswer = { selected: ['exit_only'], freeText: null, skipped: false };
 			const session = await createSession();
 			const stream = new MockChatResponseStream();
 			session.attachStream(stream);
@@ -1232,14 +1166,12 @@ describe('CopilotCLISession', () => {
 			await session.handleRequest({ id: '', toolInvocationToken: mockToken }, { prompt: 'Plan' }, [], undefined, authInfo, CancellationToken.None);
 
 			expect(result.value).toEqual({ approved: true, selectedAction: 'exit_only' });
-			expect(toolsService.invokeToolCalls).toHaveLength(1);
-			expect(toolsService.invokeToolCalls[0].input).toMatchObject({ message: summary });
 		});
 
 		it('sets autoApproveEdits when user confirms with autoApprove permission level', async () => {
 			const result = { value: undefined as unknown };
 			setupSendWithExitPlanMode({ summary: 'Here is the plan', actions: ['exit_only'] }, result);
-			toolsService.setConfirmationResult('yes');
+			userQuestionAnswer = { selected: ['exit_only'], freeText: null, skipped: false };
 			const session = await createSession();
 			session.setPermissionLevel('autoApprove');
 			const stream = new MockChatResponseStream();
@@ -1292,193 +1224,6 @@ describe('CopilotCLISession', () => {
 			await session.handleRequest({ id: '', toolInvocationToken: mockToken }, { prompt: 'Plan' }, [], undefined, authInfo, CancellationToken.None);
 
 			expect(result.value).toEqual({ approved: false });
-		});
-	});
-
-	describe('OTel instrumentation', () => {
-		function createOTelSession() {
-			const otelConfig = resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' });
-			const otelService = new InMemoryOTelService(otelConfig);
-			const spans: ICompletedSpanData[] = [];
-			otelService.onDidCompleteSpan(span => spans.push(span));
-
-			class FakeUserQuestionHandler implements IUserQuestionHandler {
-				_serviceBrand: undefined;
-				async askUserQuestion(): Promise<UserInputResponse | undefined> {
-					return undefined;
-				}
-			}
-			const session = disposables.add(new CopilotCLISession(
-				sessionOptions,
-				sdkSession as unknown as Session,
-				logger,
-				workspaceService,
-				sdk,
-				chatSessionMetadataStore,
-				instaService,
-				delegationService,
-				requestLogger,
-				new NullICopilotCLIImageSupport(),
-				toolsService,
-				new FakeUserQuestionHandler(),
-				configurationService,
-				otelService,
-				new NullChatDebugFileLoggerService()
-			));
-			return { session, spans, otelService };
-		}
-
-		it('emits a chat span with CHAT_SESSION_ID matching the SDK session ID', async () => {
-			const { session, spans } = createOTelSession();
-			const stream = new MockChatResponseStream();
-			session.attachStream(stream);
-
-			await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Hello' }, [], 'test-model', authInfo, CancellationToken.None);
-
-			const chatSpan = spans.find(s => s.name === 'chat copilot-cli');
-			expect(chatSpan).toBeDefined();
-			expect(chatSpan!.attributes['copilot_chat.chat_session_id']).toBe('mock-session-id');
-			expect(chatSpan!.attributes['gen_ai.operation.name']).toBe('chat');
-			expect(chatSpan!.attributes['gen_ai.request.model']).toBe('test-model');
-		});
-
-		it('includes user_message span event with content', async () => {
-			const { session, spans } = createOTelSession();
-			const stream = new MockChatResponseStream();
-			session.attachStream(stream);
-
-			await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Tell me something' }, [], undefined, authInfo, CancellationToken.None);
-
-			const chatSpan = spans.find(s => s.name === 'chat copilot-cli');
-			expect(chatSpan).toBeDefined();
-			const userMsgEvent = chatSpan!.events.find(e => e.name === 'user_message');
-			expect(userMsgEvent).toBeDefined();
-			expect(userMsgEvent!.attributes?.content).toContain('Tell me something');
-		});
-
-		it('sets USER_REQUEST attribute for detail pane resolver', async () => {
-			const { session, spans } = createOTelSession();
-			const stream = new MockChatResponseStream();
-			session.attachStream(stream);
-
-			await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'My prompt' }, [], undefined, authInfo, CancellationToken.None);
-
-			const chatSpan = spans.find(s => s.name === 'chat copilot-cli');
-			expect(chatSpan!.attributes['copilot_chat.user_request']).toContain('My prompt');
-		});
-
-		it('sets INPUT_MESSAGES with parts schema', async () => {
-			const { session, spans } = createOTelSession();
-			const stream = new MockChatResponseStream();
-			session.attachStream(stream);
-
-			await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Test input' }, [], undefined, authInfo, CancellationToken.None);
-
-			const chatSpan = spans.find(s => s.name === 'chat copilot-cli');
-			const inputMessages = JSON.parse(chatSpan!.attributes['gen_ai.input.messages'] as string);
-			expect(inputMessages[0].role).toBe('user');
-			expect(inputMessages[0].parts[0].type).toBe('text');
-			expect(inputMessages[0].parts[0].content).toContain('Test input');
-		});
-
-		it('sets OUTPUT_MESSAGES with parts schema for text responses', async () => {
-			const { session, spans } = createOTelSession();
-			const stream = new MockChatResponseStream();
-			session.attachStream(stream);
-
-			await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Hello' }, [], undefined, authInfo, CancellationToken.None);
-
-			const chatSpan = spans.find(s => s.name === 'chat copilot-cli');
-			const outputMessages = JSON.parse(chatSpan!.attributes['gen_ai.output.messages'] as string);
-			expect(outputMessages[0].role).toBe('assistant');
-			expect(outputMessages[0].parts[0].type).toBe('text');
-			expect(outputMessages[0].parts[0].content).toContain('Echo: Hello');
-		});
-
-		it('emits execute_tool spans for tool calls', async () => {
-			sdkSession.send = async (options: any) => {
-				sdkSession.lastSendOptions = options;
-				sdkSession.emit('user.message', { content: options.prompt });
-				sdkSession.emit('tool.execution_start', { toolCallId: 'tc1', toolName: 'glob', arguments: '{"pattern":"**/*.ts"}' });
-				sdkSession.emit('tool.execution_complete', { toolCallId: 'tc1', success: true, result: { content: 'file1.ts\nfile2.ts' } });
-				sdkSession.emit('assistant.message', { messageId: 'msg1', content: 'Found 2 files' });
-			};
-
-			const { session, spans } = createOTelSession();
-			const stream = new MockChatResponseStream();
-			session.attachStream(stream);
-
-			await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Find files' }, [], undefined, authInfo, CancellationToken.None);
-
-			const toolSpan = spans.find(s => s.name === 'execute_tool glob');
-			expect(toolSpan).toBeDefined();
-			expect(toolSpan!.attributes['gen_ai.operation.name']).toBe('execute_tool');
-			expect(toolSpan!.attributes['gen_ai.tool.name']).toBe('glob');
-			expect(toolSpan!.attributes['gen_ai.tool.call.id']).toBe('tc1');
-			expect(toolSpan!.attributes['gen_ai.tool.call.arguments']).toContain('**/*.ts');
-			expect(toolSpan!.attributes['gen_ai.tool.call.result']).toContain('file1.ts');
-			expect(toolSpan!.attributes['copilot_chat.chat_session_id']).toBe('mock-session-id');
-		});
-
-		it('emits error span on session.error', async () => {
-			sdkSession.send = async (options: any) => {
-				sdkSession.lastSendOptions = options;
-				sdkSession.emit('user.message', { content: options.prompt });
-				sdkSession.emit('session.error', { errorType: 'query', message: 'Something went wrong' });
-			};
-
-			const { session, spans } = createOTelSession();
-			const stream = new MockChatResponseStream();
-			session.attachStream(stream);
-
-			await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Fail' }, [], undefined, authInfo, CancellationToken.None);
-
-			const errorSpan = spans.find(s => s.name.startsWith('session_error'));
-			expect(errorSpan).toBeDefined();
-			expect(errorSpan!.attributes['gen_ai.operation.name']).toBe('content_event');
-			expect(errorSpan!.attributes['copilot_chat.debug_name']).toContain('Session Error');
-			expect(errorSpan!.status.code).toBe(2); // SpanStatusCode.ERROR
-		});
-
-		it('records token usage on LLM span', async () => {
-			sdkSession.send = async (options: any) => {
-				sdkSession.lastSendOptions = options;
-				sdkSession.emit('user.message', { content: options.prompt });
-				sdkSession.emit('assistant.usage', { inputTokens: 1000, outputTokens: 200 });
-				sdkSession.emit('assistant.message', { messageId: 'msg1', content: 'Response' });
-			};
-
-			const { session, spans } = createOTelSession();
-			const stream = new MockChatResponseStream();
-			session.attachStream(stream);
-
-			await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Test' }, [], undefined, authInfo, CancellationToken.None);
-
-			const chatSpan = spans.find(s => s.name === 'chat copilot-cli');
-			expect(chatSpan!.attributes['gen_ai.usage.input_tokens']).toBe(1000);
-			expect(chatSpan!.attributes['gen_ai.usage.output_tokens']).toBe(200);
-		});
-
-		it('ends LLM span with tool_call output type when tool is called', async () => {
-			sdkSession.send = async (options: any) => {
-				sdkSession.lastSendOptions = options;
-				sdkSession.emit('user.message', { content: options.prompt });
-				sdkSession.emit('tool.execution_start', { toolCallId: 'tc1', toolName: 'bash', arguments: '{"command":"ls"}' });
-				sdkSession.emit('tool.execution_complete', { toolCallId: 'tc1', success: true, result: { content: 'output' } });
-				sdkSession.emit('assistant.message', { messageId: 'msg1', content: 'Done' });
-			};
-
-			const { session, spans } = createOTelSession();
-			const stream = new MockChatResponseStream();
-			session.attachStream(stream);
-
-			await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Run ls' }, [], undefined, authInfo, CancellationToken.None);
-
-			// The first LLM span should have been ended with tool_call output type
-			const chatSpans = spans.filter(s => s.name === 'chat copilot-cli');
-			expect(chatSpans.length).toBeGreaterThanOrEqual(1);
-			const firstChat = chatSpans[0];
-			expect(firstChat.attributes['gen_ai.output.type']).toBe('tool_call');
 		});
 	});
 });

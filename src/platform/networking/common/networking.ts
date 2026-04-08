@@ -104,6 +104,7 @@ export interface IEndpointBody {
 	/** Responses API: */
 	input?: readonly any[];
 	truncation?: 'auto' | 'disabled';
+	prompt_cache_key?: string;
 	include?: ['reasoning.encrypted_content'];
 	store?: boolean;
 	text?: {
@@ -183,8 +184,10 @@ export interface IMakeChatRequestOptions {
 	enableRetryOnError?: boolean;
 	/** Which fetcher to use, overrides the default. */
 	useFetcher?: FetcherId;
-	/** Disable extended thinking for this request. Used when resuming from tool call errors where the original thinking blocks are not available. */
-	disableThinking?: boolean;
+	/** Explicitly enable thinking for this request. When not set, thinking is disabled. */
+	enableThinking?: boolean;
+	/** Reasoning effort level for this request (e.g. 'low', 'medium', 'high'). Only used when enableThinking is true or when the model supports reasoning effort. */
+	reasoningEffort?: string;
 	/** Enable retrying once on simple network errors like ECONNRESET. */
 	canRetryOnceWithoutRollback?: boolean;
 	/** Custom metadata to be displayed in the log document */
@@ -211,6 +214,8 @@ export type IChatRequestTelemetryProperties = {
 	subType?: string;
 	/** For a subagent: The request ID of the parent request that invoked this subagent. */
 	parentRequestId?: string;
+	/** For a subagent: The tool_call_id from the parent agent's LLM response that triggered this subagent invocation. */
+	parentToolCallId?: string;
 }
 
 export interface ICreateEndpointBodyOptions extends IMakeChatRequestOptions {
@@ -228,6 +233,7 @@ export interface IChatEndpoint extends IEndpoint {
 	readonly supportsAdaptiveThinking?: boolean;
 	readonly minThinkingBudget?: number;
 	readonly maxThinkingBudget?: number;
+	readonly supportsReasoningEffort?: string[];
 	readonly supportsToolCalls: boolean;
 	readonly supportsVision: boolean;
 	readonly supportsPrediction: boolean;
